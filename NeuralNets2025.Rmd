@@ -1,0 +1,180 @@
+---
+title: "Neural Nets Refresher"
+author: "Darryl Fung"
+date: "2025-07-17"
+output: html_document
+---
+
+# Neural nets refresher
+Information from https://www.datacamp.com/tutorial/neural-network-models-r
+
+## Packages setup
+```{r}
+install.packages(c('neuralnet','keras','tensorflow'),dependencies = T)
+```
+
+```{r}
+library(tidyverse)
+library(neuralnet)
+```
+
+
+## Data Analysis
+
+```{r}
+iris = iris %>% mutate_if(is.character, as.factor)
+```
+
+- Converts columns that are type character into type factor.
+- Converts raw character columns into factor columns (so they have categories)
+
+```{r}
+summary(iris)
+```
+Note: all three classes (setosa, versicolor, virginica) have 50 samples. The data is balanced
+
+## Make Train and Test Split
+- Usually 70/30 or 80/20 split
+- By setting a seed, we can test for reproducibility
+```{r}
+set.seed(245)
+data_rows=floor(0.8*nrow(iris)) #round down
+
+train_indices=sample(
+  c(1:nrow(iris)),
+  data_rows
+)
+  # from all the rows of iris...
+  # Sample an amount of rows equal to data_rows (aka rounded-down 80% of numrows)
+  # NOTE: train_indices is the sampled ROWS
+
+train_data=iris[train_indices,] # new df that's only iris' training rows
+test_data=iris[-train_indices,] # new df that EXCLUDES iris' training rows
+```
+Since we did a 80/20 split, 120 rows are train and 30 rows are test
+
+## Training Neural Net
+Of course, we use the training data.
+Make a neural net model and plot it
+```{r}
+model = neuralnet(
+    Species~Sepal.Length+Sepal.Width+Petal.Length+Petal.Width,
+data=train_data,
+hidden=c(4,2),
+linear.output = FALSE
+)
+
+  # Hidden parameter = vector.
+  # In the vector, specify # of neurons/vertices in each layer
+```
+Reminder: ~ means "in relation to."
+Target/dependent variable ~ Predictor/independent variable(s)
+
+
+```{r}
+plot(model,rep = "best") # rep = representation parameter
+```
+## Model Evaluation
+### Confusion Matrix
+```{r}
+pred <- predict(model, test_data) #make predictions based on our trained model
+
+labels <- c("setosa", "versicolor", "virginica") #label for the three species of flowers
+
+prediction_label <- data.frame(max.col(pred)) %>%     
+mutate(pred=labels[max.col.pred.]) %>%
+select(2) %>%
+unlist()
+# remember that max.col.pred is the default name given to the single column in the dataframe that was made from max.col(pred)
+
+# we are finding the maximum value for the row because that's where model's prediction value is highest. (each row = one flower, the model gives a set of probability predictions for each column, i.e. % prob that the value belongs to each flower type.) The highest prediction value is effectively the model's prediction for flower type.
+
+
+table(test_data$Species, prediction_label)
+```
+Any off-diagonals that don't indicate match between real and predicted (eg: setosa to setosa)
+means the prediction was wrong.
+The prediction had 3 predictions where it was actually virginica and it predicted versicolor
+
+```{r}
+check = as.numeric(test_data$Species) == max.col(pred)
+accuracy = (sum(check)/nrow(test_data))*100
+print(accuracy)
+```
+Model predicts with 90% accuracy
+
+
+# Convolutional Neural Net in R with Keras
+- Keras and Tensorflow (Python-based) to build convolutional neural network model for image classification
+- cifar10 image dataset
+
+```{r}
+
+library(keras)
+library(tensorflow)
+install_tensorflow() #creates virtual environment for tensorflow
+```
+
+```{r}
+# library(zeallot)
+
+```
+
+## Training and Test group assignment
+```{r}
+c(c(x_train, y_train), c(x_test, y_test)) %<-% dataset_cifar10()
+# this assignment operator can't be broken up into newlines for some reason
+```
+%<-% is made available upon INSTALLING tensorflow, and is unrelated to the assignment operator from zeallot.
+
+```{r}
+head(y_train)
+```
+## Normalization
+To normalize data, divide train and test features of x by 255
+This changes the values to go on a scale between 0 and 1.
+```{r}
+x_train <- x_train / 255
+x_test <-  x_test / 255
+```
+
+```{r}
+head(x_train)
+```
+
+## Building model
+```{r}
+model <- keras_model_sequential()%>%
+  # Start with a hidden 2D convolutional layer
+  layer_conv_2d(
+    filter = 16, kernel_size = c(3,3), padding = "same",
+    input_shape = c(32, 32, 3), activation = 'leaky_relu'
+  ) %>%
+
+  # 2nd hidden layer
+  layer_conv_2d(filter = 32, kernel_size = c(3,3), activation = 'leaky_relu') %>%
+ 
+
+  # Use max pooling
+  layer_max_pooling_2d(pool_size = c(2,2)) %>%
+  layer_dropout(0.25) %>%
+
+  # 3rd and 4th hidden 2D convolutional layers
+  layer_conv_2d(filter = 32, kernel_size = c(3,3), padding = "same", activation = 'leaky_relu') %>%
+
+  layer_conv_2d(filter = 64, kernel_size = c(3,3), activation = 'leaky_relu') %>%
+
+  # Use max pooling
+  layer_max_pooling_2d(pool_size = c(2,2)) %>%
+  layer_dropout(0.25) %>%
+ 
+  # Flatten max filtered output into feature vector
+  # and feed into dense layer
+  layer_flatten() %>%
+  layer_dense(256, activation = 'leaky_relu') %>%
+  layer_dropout(0.5) %>%
+
+  # Outputs from dense layer
+  layer_dense(10, activation = 'softmax')
+```
+
