@@ -104,7 +104,7 @@ print(accuracy)
 Model predicts with 90% accuracy
 
 
-# Convolutional Neural Net in R with Keras
+# Convolutional Neural Net (CNN) in R with Keras
 - Keras and Tensorflow (Python-based) to build convolutional neural network model for image classification
 - cifar10 image dataset
 
@@ -115,10 +115,6 @@ library(tensorflow)
 install_tensorflow() #creates virtual environment for tensorflow
 ```
 
-```{r}
-# library(zeallot)
-
-```
 
 ## Training and Test group assignment
 ```{r}
@@ -142,17 +138,20 @@ x_test <-  x_test / 255
 head(x_train)
 ```
 
-## Building model
+## Building model (Functional API)
 ```{r}
+# old Sequential style (Datacamp). Doesn't work with newer versions of TensorFlow
+
+# Make an empty keras sequential model.
 model <- keras_model_sequential()%>%
-  # Start with a hidden 2D convolutional layer
+  # Start by adding a hidden 2D convolutional layer
   layer_conv_2d(
-    filter = 16, kernel_size = c(3,3), padding = "same",
-    input_shape = c(32, 32, 3), activation = 'leaky_relu'
+    filters = 16, kernel_size = c(3,3), padding = "same",
+    input_shape = c(32, 32, 3), activation = 'relu'
   ) %>%
 
   # 2nd hidden layer
-  layer_conv_2d(filter = 32, kernel_size = c(3,3), activation = 'leaky_relu') %>%
+  layer_conv_2d(filters = 32, padding="same", kernel_size = c(3,3), activation = 'relu') %>%
  
 
   # Use max pooling
@@ -176,5 +175,76 @@ model <- keras_model_sequential()%>%
 
   # Outputs from dense layer
   layer_dense(10, activation = 'softmax')
+```
+Tensorflow's Keras as of 2.15 (Nov 2023) uses a different method for adding layers in sequential models. DataCamp's code (Sequential, Feb 2023) is deprecated, so using a new method (Functional API)
+https://keras.io/guides/functional_api/
+```{r}
+# newer versions of TensorFlow render DataCamp's Sequential code unusable.
+# Current solutions include $add to directly add layers or use the functional API for %>%-style piping
+
+# Functional API style test:
+
+library(keras)
+
+inputs <- layer_input(shape = c(32, 32, 3))
+outputs <- inputs %>%
+  layer_conv_2d(filters = 16, kernel_size = c(3,3), padding = "same", activation = "relu") %>%
+  layer_conv_2d(filters = 32, kernel_size = c(3,3), padding = "same", activation = "relu")
+
+model <- keras_model(inputs = inputs, outputs = outputs)
+summary(model)
+
+```
+
+```{r}
+library(keras)
+
+# Input layer
+inputs <- layer_input(shape = c(32, 32, 3))
+
+# 1st hidden layer
+outputs <- inputs %>%
+  layer_conv_2d(
+    filters = 16, kernel_size = c(3,3), padding = "same", activation = "relu"
+  ) %>%
+
+  # 2nd hidden layer
+  layer_conv_2d(
+    filters = 32, kernel_size = c(3,3), padding = "same", activation = "relu"
+  ) %>%
+  
+  # Max pooling + dropout
+  layer_max_pooling_2d(pool_size = c(2,2)) %>%
+  layer_dropout(0.25) %>%
+
+  # 3rd hidden layer
+  layer_conv_2d(filters = 32, kernel_size = c(3,3), padding = "same") %>%
+  layer_activation_leaky_relu() %>%
+
+  # 4th hidden layer
+  layer_conv_2d(filters = 64, kernel_size = c(3,3)) %>%
+  layer_activation_leaky_relu() %>%
+
+  # Max pooling + dropout
+  layer_max_pooling_2d(pool_size = c(2,2)) %>%
+  layer_dropout(0.25) %>%
+
+  # Flatten
+  layer_flatten() %>%
+
+  # Dense layer
+  layer_dense(256) %>%
+  layer_activation_leaky_relu() %>%
+  layer_dropout(0.5) %>%
+
+  # Output layer
+  layer_dense(10, activation = "softmax")
+
+# Build the functional model
+model <- keras_model(inputs = inputs, outputs = outputs)
+
+# Check model summary
+summary(model)
+
 ```
 
